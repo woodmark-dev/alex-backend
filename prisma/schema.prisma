@@ -1,0 +1,30 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id   String @id @default(uuid())
+  email String  @unique
+  //password is made optional because the google signup/login does not require a password
+  password String?
+  name  String?
+  verificationId String?
+  isEmailVerified Boolean @default(false)
+  isGoogleAccount Boolean @default(false)
+  posts Post[]
+}
+
+model Post{
+  id        Int      @default(autoincrement()) @id
+  title     String
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id])
+}
