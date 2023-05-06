@@ -13,18 +13,32 @@ datasource db {
 model User {
   id   String @id @default(uuid())
   email String  @unique
-  //password is made optional because the google signup/login does not require a password
-  password String?
-  name  String?
-  verificationId String?
-  isEmailVerified Boolean @default(false)
-  isGoogleAccount Boolean @default(false)
+  role String @default("User")
+  password String
+  firstName  String
+  lastName String
+  department String
+  imageUrl String @default("https://cdn.pixabay.com/photo/2015/09/09/14/02/icon-931551_960_720.jpg")
   posts Post[]
+  comments Comments[]
 }
 
 model Post{
   id        Int      @default(autoincrement()) @id
   title     String
+  content String
+  imageUrl String?
   authorId  String?
   author    User?    @relation(fields: [authorId], references: [id])
+  likes Int @default(0)
+  comments Comments[]
+}
+
+model Comments{
+  id Int @id @default(autoincrement())
+  content String
+  authorId  String
+  author    User    @relation(fields: [authorId], references: [id])
+  postId Int
+  post Post @relation(fields: [postId], references: [id])
 }

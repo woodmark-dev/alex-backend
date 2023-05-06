@@ -1,8 +1,16 @@
-import { Controller, Post, Body, UseGuards, Get, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Res,
+  HttpStatus,
+} from '@nestjs/common';
+import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { CreateUserDTO } from './dto/create-user.dto';
 import { LoginUserDTO } from './dto/login-user.dto';
-import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { User } from './decorators/user.decorator';
 
@@ -11,54 +19,41 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   //Signs up with username and password
-  @Post('signup')
+  @Post('register')
   async signUp(@Body() user: CreateUserDTO) {
     return this.authService.signUp(user);
   }
 
   //Login with username and password
   @Post('login')
-  async login(@Body() userData: LoginUserDTO) {
-    return this.authService.login(userData);
-  }
-
-  @Get('verify-email')
-  async verifyUserEmail(
-    @Body() data: { email: string; verificationId: string },
+  async login(
+    @Body() userData: LoginUserDTO,
+    @Res({ passthrough: true }) response: Response,
   ) {
-    return await this.authService.verifyUserEmail(
-      data.email,
-      data.verificationId,
-    );
+    return await this.authService.login(userData, response);
   }
 
-  @Get('forgot-password')
-  async verifyUser(@Query() email: string) {
-    return await this.authService.verifyUser(email);
+  @Get('get-user')
+  @UseGuards(JwtAuthGuard)
+  test(@User() user) {
+    return { message: user, statusCode: HttpStatus.OK };
   }
 
-  @Post('change-password')
-  async changePassword(
-    @Body() data: { email: string; password: string; verificationId: string },
-  ) {
-    return await this.authService.updatePassword(
-      data.email,
-      data.password,
-      data.verificationId,
-    );
-  }
-
-  //This is the link to authenticate a google account. If the email exists in our database, it issues a jwt. Otherwise, it creates one and issue a jwt
-  @Get('google/callback')
-  @UseGuards(GoogleAuthGuard)
-  googleAuthRedirect(@User() user) {
-    return this.authService.googleLogin(user);
+  @Get('logout')
+  async logout(@Res({ passthrough: true }) response: Response) {
+    response.clearCookie('auth-cookie');
+    return { message: 'Success', statusCode: HttpStatus.OK };
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('test')
-  test(@User() user) {
-    //returns user information whether authentication is made with google or username and password
-    return user;
+  @Get('all-users')
+  async getUsers() {
+    return await this.authService.getUsers();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('delete-user')
+  async deleteUser(@Body() data: { id: string }) {
+    return await this.authService.deleteUser(data.id);
   }
 }

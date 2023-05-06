@@ -1,134 +1,114 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Response } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDTO } from './dto/create-user.dto';
 import { LoginUserDTO } from './dto/login-user.dto';
-import { EmailingService } from '../emailing/emailing.service';
-import { randomBytes } from 'crypto';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prismaService: PrismaService,
     private jwtService: JwtService,
-    private emailingService: EmailingService,
   ) {}
 
-  async signUp(userData: CreateUserDTO): Promise<string> {
-    //hashing our password using the argon 2 library
-    const password = await this.generateHash(userData.password);
-    const verificationId = this.generateVerificationId();
-    const createUser = this.prismaService.user.create({
-      data: {
-        email: userData.email,
-        name: userData.name,
-        password,
-        verificationId,
-      },
-    });
-    const sendEmail = this.emailingService.sendVerificationEmail(
-      userData.email,
-      verificationId,
-      'Verify Email',
-    );
-    //It should all resolve to be successful
-    await Promise.all([createUser, sendEmail]);
-    return 'You have successfully signed up';
-  }
-
-  async login(userData: LoginUserDTO) {
+  async signUp(userData: CreateUserDTO) {
     const user = await this.findUser(userData.email);
-    const isPassword = await argon2.verify(user.password, userData.password);
-    console.log(isPassword);
-    if (!user || !isPassword) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    const payload = { email: user.email, sub: user.id, name: user.name };
-    return {
-      access_token: this.jwtService.sign(payload, {
-        expiresIn: process.env.JWT_EXPIRATION,
-        secret: process.env.JWT_SECRET,
-      }),
-    };
-  }
-
-  async googleLogin(userData: any) {
-    const { email, firstName } = userData;
-
-    //Search for the user in the database
-    const user = await this.findUser(email);
-
-    if (user && !user.isGoogleAccount) {
-      throw new ForbiddenException(
-        'User with this email address already exists',
+    if (user) {
+      throw new HttpException(
+        'User with email aready exists',
+        HttpStatus.UNAUTHORIZED,
       );
     }
-
-    //If user does not exist, create one
-    if (!user) {
-      await this.prismaService.user.create({
-        data: {
-          email,
-          //We'll add firstName from google as name
-          name: firstName,
-          isEmailVerified: true,
-          isGoogleAccount: true,
-        },
-      });
-    }
-    //create a jwt token from the data
-    const payload = { email, sub: user.id, name: firstName };
+    const password = await this.generateHash(userData.password);
+    await this.prismaService.user.create({
+      data: {
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        department: userData.department,
+        password,
+      },
+    });
     return {
+      message: 'Registration successful! procedd to ',
+      statusCode: HttpStatus.CREATED,
+    };
+  }
+
+  async login(userData: LoginUserDTO, res: Response) {
+    const user = await this.findUser(userData.email);
+    if (!user) {
+      throw new HttpException(
+        'User with these details does not exist',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    const isPassword = await argon2.verify(user?.password, userData.password);
+    if (!user || !isPassword) {
+      throw new HttpException(
+        'User with these details does not exist',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    const payload = {
+      email: user.email,
+      sub: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      imageUrl: user.imageUrl,
+    };
+
+    const token = {
+      role: user.role,
       access_token: this.jwtService.sign(payload, {
         expiresIn: process.env.JWT_EXPIRATION,
         secret: process.env.JWT_SECRET,
       }),
     };
+
+    res.cookie('auth-cookie', token, {
+      httpOnly: true,
+      maxAge: 28800000,
+      path: '/',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+
+    return { message: { role: token.role }, statusCode: HttpStatus.CREATED };
   }
 
-  async verifyUserEmail(email: string, verificationId: string) {
-    const user = await this.findUser(email);
-    const isIdValid = user.verificationId === verificationId;
-    if (!user || !isIdValid) {
-      throw new UnauthorizedException('Access Denied');
-    }
-    await this.updateUser(email, '');
-    return 'User email has been verified';
+  async getUsers() {
+    const users = await this.prismaService.user.findMany({});
+    return { message: users, statusCode: HttpStatus.OK };
   }
 
-  async verifyUser(email: string) {
-    const user = await this.findUser(email);
-    const verificationId = this.generateVerificationId();
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    await this.updateUser(email, verificationId);
-    await this.emailingService.sendVerificationEmail(
-      user.email,
-      verificationId,
-      'Change Password',
-    );
-    return 'Check your email to change your password';
-  }
+  async deleteUser(id: string) {
+    const comments = await this.prismaService.comments.findMany({
+      where: { authorId: id },
+    });
 
-  async updatePassword(
-    email: string,
-    password: string,
-    verificationId: string,
-  ) {
-    const hashedPassword = await this.generateHash(password);
-    const user = await this.findUser(email);
-    const isIdValid = user.verificationId === verificationId;
-    if (!user || !isIdValid) {
-      throw new UnauthorizedException('Access denied');
+    if (comments.length !== 0) {
+      await this.prismaService.comments.deleteMany({ where: { authorId: id } });
     }
-    await this.updateUser(email, '', hashedPassword);
-    return 'Password has been successfully updated';
+
+    const posts = await this.prismaService.comments.findMany({
+      where: { authorId: id },
+    });
+
+    if (posts.length !== 0) {
+      await this.prismaService.post.deleteMany({ where: { authorId: id } });
+    }
+
+    await this.prismaService.user.delete({
+      where: {
+        id,
+      },
+    });
+
+    return { message: 'User deleted', statusCode: HttpStatus.CREATED };
   }
 
   //Healper functions below
@@ -141,20 +121,6 @@ export class AuthService {
     });
   }
 
-  async updateUser(email: string, verificationId: string, password?: string) {
-    return await this.prismaService.user.update({
-      where: {
-        email,
-      },
-      data: {
-        verificationId,
-        password,
-      },
-    });
-  }
-  generateVerificationId() {
-    return randomBytes(40).toString('hex');
-  }
   async generateHash(data: string) {
     return await argon2.hash(data);
   }
