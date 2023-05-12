@@ -33,6 +33,14 @@ export class PostService {
       where: {
         authorId: userId,
       },
+      include: {
+        author: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
     });
     if (!posts) {
       throw new HttpException(
@@ -81,6 +89,20 @@ export class PostService {
   }
 
   async deletePost(id: number) {
+    const comments = await this.db.comments.findMany({
+      where: {
+        postId: id,
+      },
+    });
+
+    if (comments.length !== 0) {
+      await this.db.comments.deleteMany({
+        where: {
+          postId: id,
+        },
+      });
+    }
+
     await this.db.post.delete({
       where: { id },
     });
@@ -89,7 +111,16 @@ export class PostService {
   }
 
   async getAllPosts() {
-    const data = await this.db.post.findMany({});
+    const data = await this.db.post.findMany({
+      include: {
+        author: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
     return { message: data, statusCode: HttpStatus.OK };
   }
 

@@ -16,12 +16,6 @@ export class PostController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('get-all')
-  async getAll(@User() user) {
-    console.log(user);
-  }
-
-  @UseGuards(JwtAuthGuard)
   @Get('get-user-posts')
   async getAllUserPosts(@User() user) {
     const { userId } = user;
