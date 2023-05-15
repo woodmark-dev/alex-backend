@@ -26,6 +26,7 @@ export class PostService {
       return;
     }
     await this.createNewPost({ title, content, imageUrl: '', userId });
+    return { message: 'success', statusCode: HttpStatus.CREATED };
   }
 
   async getAllUserPosts({ userId }: { userId: string }) {

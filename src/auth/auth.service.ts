@@ -1,5 +1,6 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import { Response } from 'express';
+import * as cloudinary from 'cloudinary';
+import { Response, Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
@@ -109,6 +110,76 @@ export class AuthService {
     });
 
     return { message: 'User deleted', statusCode: HttpStatus.CREATED };
+  }
+
+  async editFName(email: string, newFName: string) {
+    await this.prismaService.user.update({
+      where: {
+        email,
+      },
+      data: {
+        firstName: newFName,
+      },
+    });
+    return {
+      message: 'User First Name Updated',
+      statusCode: HttpStatus.CREATED,
+    };
+  }
+
+  async editLName(email: string, newLName: string) {
+    await this.prismaService.user.update({
+      where: {
+        email,
+      },
+      data: {
+        lastName: newLName,
+      },
+    });
+    return {
+      message: 'User Last Name Updated',
+      statusCode: HttpStatus.CREATED,
+    };
+  }
+
+  async editDept(email: string, newDept: string) {
+    await this.prismaService.user.update({
+      where: {
+        email,
+      },
+      data: {
+        department: newDept,
+      },
+    });
+    return {
+      message: 'User Department Updated',
+      statusCode: HttpStatus.CREATED,
+    };
+  }
+
+  async getUser(email: string) {
+    const user = await this.findUser(email);
+    return { message: user, statusCode: HttpStatus.OK };
+  }
+
+  async uploadImage({ req, userId }: { req: Request; userId: string }) {
+    const { files } = req;
+    const imagePath = files['file']['tempFilePath'];
+    const { secure_url } = await cloudinary.v2.uploader.upload(imagePath, {
+      use_filename: true,
+      folder: 'alex-project',
+    });
+
+    await this.prismaService.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        imageUrl: secure_url,
+      },
+    });
+
+    return { message: 'Image Uploaded', statusCode: HttpStatus.CREATED };
   }
 
   //Healper functions below
