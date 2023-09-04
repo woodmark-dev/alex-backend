@@ -1,6 +1,7 @@
+/* eslint-disable prettier/prettier */
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import * as cloudinary from 'cloudinary';
-import { Response, Request } from 'express';
+import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,7 +13,7 @@ export class AuthService {
   constructor(
     private prismaService: PrismaService,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   async signUp(userData: CreateUserDTO) {
     const user = await this.findUser(userData.email);
@@ -38,7 +39,7 @@ export class AuthService {
     };
   }
 
-  async login(userData: LoginUserDTO, res: Response) {
+  async login(userData: LoginUserDTO) {
     const user = await this.findUser(userData.email);
     if (!user) {
       throw new HttpException(
@@ -54,31 +55,17 @@ export class AuthService {
       );
     }
     const payload = {
-      email: user.email,
       sub: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
       role: user.role,
-      imageUrl: user.imageUrl,
     };
 
-    const token = {
-      role: user.role,
-      access_token: this.jwtService.sign(payload, {
-        expiresIn: process.env.JWT_EXPIRATION,
-        secret: process.env.JWT_SECRET,
-      }),
-    };
-
-    res.cookie('auth-cookie', token, {
-      httpOnly: true,
-      maxAge: 28800000,
-      path: '/',
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+    const access_token = this.jwtService.sign(payload, {
+      secret: process.env.JWT_SECRET,
+      expiresIn: process.env.JWT_EXPIRATION,
+      algorithm: 'HS256'
     });
 
-    return { message: { role: token.role }, statusCode: HttpStatus.CREATED };
+    return { message: { access_token, role: user.role }, statusCode: HttpStatus.CREATED };
   }
 
   async getUsers() {

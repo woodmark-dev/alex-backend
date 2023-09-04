@@ -1,25 +1,33 @@
+/* eslint-disable prettier/prettier */
 import { Request } from 'express';
-import { Controller, Post, Req, Get, UseGuards, Body } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Req,
+  Get,
+  UseGuards,
+  Body,
+  ParseIntPipe,
+  Query,
+} from '@nestjs/common';
 import { PostService } from './post.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from 'src/auth/decorators/user.decorator';
 
 @Controller('post')
 export class PostController {
-  constructor(private postService: PostService) {}
+  constructor(private postService: PostService) { }
 
   @UseGuards(JwtAuthGuard)
   @Post('upload')
   async uploadImage(@Req() req: Request, @User() user) {
-    const { userId } = user;
-    return await this.postService.uploadImage({ req, userId });
+    return await this.postService.uploadImage({ req, userId: user.id });
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('get-user-posts')
   async getAllUserPosts(@User() user) {
-    const { userId } = user;
-    return this.postService.getAllUserPosts({ userId });
+    return this.postService.getAllUserPosts({ userId: user.id });
   }
 
   @UseGuards(JwtAuthGuard)
@@ -28,9 +36,8 @@ export class PostController {
     @User() user,
     @Body() comData: { content: string; postId: string },
   ) {
-    const { userId } = user;
     return this.postService.addComment({
-      authorId: userId,
+      authorId: user.id,
       content: comData.content,
       postId: comData.postId,
     });
@@ -54,7 +61,7 @@ export class PostController {
   }
 
   @Get('all-posts')
-  async getAllPosts() {
-    return await this.postService.getAllPosts();
+  async getAllPosts(@Query('id') id) {
+    return await this.postService.getAllPosts(+id);
   }
 }

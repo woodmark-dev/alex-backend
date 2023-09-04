@@ -111,8 +111,12 @@ export class PostService {
     return { message: 'Success', statusCode: HttpStatus.CREATED };
   }
 
-  async getAllPosts() {
+  async getAllPosts(num: number) {
     const data = await this.db.post.findMany({
+      take: num,
+      orderBy: {
+        id: 'desc',
+      },
       include: {
         author: {
           select: {
@@ -122,7 +126,8 @@ export class PostService {
         },
       },
     });
-    return { message: data, statusCode: HttpStatus.OK };
+    const totalNum = (await this.db.post.findMany({})).length;
+    return { message: { data, totalNum }, statusCode: HttpStatus.OK };
   }
 
   //helper functions:

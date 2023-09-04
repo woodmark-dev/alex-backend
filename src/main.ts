@@ -16,6 +16,6 @@ async function bootstrap() {
     api_secret: process.env.CLOUD_API_SECRET,
   });
   app.use(fileUpload({ useTempFiles: true }));
-  await app.listen(3333);
+  await app.listen(process.env.PORT || 3333);
 }
 bootstrap();

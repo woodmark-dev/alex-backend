@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   Controller,
   Post,
@@ -17,7 +18,7 @@ import { User } from './decorators/user.decorator';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService) { }
 
   //Signs up with username and password
   @Post('register')
@@ -29,9 +30,8 @@ export class AuthController {
   @Post('login')
   async login(
     @Body() userData: LoginUserDTO,
-    @Res({ passthrough: true }) response: Response,
   ) {
-    return await this.authService.login(userData, response);
+    return await this.authService.login(userData);
   }
 
   @Get('get-user')
@@ -79,8 +79,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('upload-image')
   async uploadImage(@Req() req: Request, @User() user) {
-    const { userId } = user;
-    return await this.authService.uploadImage({ req, userId });
+    return await this.authService.uploadImage({ req, userId: user.id });
     // return await this.postService.uploadImage({ req, userId });
   }
 }
